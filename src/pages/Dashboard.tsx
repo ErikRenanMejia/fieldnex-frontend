@@ -104,16 +104,6 @@ const Spinner = () => (
   </div>
 );
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 20, fontFamily: "'Syne', sans-serif" }}>
-    <span style={{ color: "#EF4444", fontSize: 16, fontWeight: 600 }}>Failed to load</span>
-    <span style={{ color: "#555", fontSize: 13, textAlign: "center" }}>{message}</span>
-    <button onClick={onRetry} style={{ padding: "10px 24px", borderRadius: 12, background: "#1A1A1A", border: "1px solid #2A2A2A", color: "#FFF", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-      Try again
-    </button>
-  </div>
-);
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const SummaryCard = ({ value, label, accent }: { value: number; label: string; accent?: boolean }) => (
@@ -178,16 +168,15 @@ const Dashboard = () => {
   const [activeNav, setActiveNav] = useState<NavItem>("Home");
   const [jobs, setJobs]           = useState<Job[]>([]);
   const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       const data = await getJobs();
       setJobs(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch {
+      // Non-401 errors: show empty dashboard (401 is handled by fetchAPI → redirect to /login)
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -207,7 +196,6 @@ const Dashboard = () => {
   ];
 
   if (loading) return <Spinner />;
-  if (error)   return <ErrorState message={error} onRetry={fetchJobs} />;
 
   return (
     <>
