@@ -24,16 +24,6 @@ const Spinner = () => (
   </div>
 );
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 20, fontFamily: "'Syne', sans-serif" }}>
-    <span style={{ color: "#EF4444", fontSize: 16, fontWeight: 600 }}>Failed to load</span>
-    <span style={{ color: "#555", fontSize: 13, textAlign: "center" }}>{message}</span>
-    <button onClick={onRetry} style={{ padding: "10px 24px", borderRadius: 12, background: "#1A1A1A", border: "1px solid #2A2A2A", color: "#FFF", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-      Try again
-    </button>
-  </div>
-);
-
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
 const HomeIcon  = ({ active }: { active: boolean }) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? "#22C55E" : "#555"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
@@ -273,7 +263,6 @@ const Inventory = () => {
   ];
 
   if (loading) return <Spinner />;
-  if (error)   return <ErrorState message={error} onRetry={fetchItems} />;
 
   return (
     <>
@@ -283,7 +272,10 @@ const Inventory = () => {
 
         {/* Topbar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 20px 16px", position: "sticky", top: 0, zIndex: 10, background: "#080808" }}>
-          <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700 }}>Inventory</h1>
+          <div>
+            <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700 }}>Inventory</h1>
+            {error && <p style={{ color: "#EF4444", fontSize: 12, marginTop: 4, wordBreak: "break-all" }}>API error: {error}</p>}
+          </div>
           <button
             onClick={() => setShowForm(true)}
             style={{ width: 36, height: 36, borderRadius: 10, background: "#22C55E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}

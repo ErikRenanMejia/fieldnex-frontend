@@ -39,16 +39,6 @@ const Spinner = () => (
   </div>
 );
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
-  <div style={{ minHeight: "100vh", background: "#080808", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, padding: 20, fontFamily: "'Syne', sans-serif" }}>
-    <span style={{ color: "#EF4444", fontSize: 16, fontWeight: 600 }}>Failed to load</span>
-    <span style={{ color: "#555", fontSize: 13, textAlign: "center" }}>{message}</span>
-    <button onClick={onRetry} style={{ padding: "10px 24px", borderRadius: 12, background: "#1A1A1A", border: "1px solid #2A2A2A", color: "#FFF", fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-      Try again
-    </button>
-  </div>
-);
-
 // ─── Job Card ─────────────────────────────────────────────────────────────────
 
 const JobCard = ({ job, onClick }: { job: Job; onClick: () => void }) => {
@@ -234,7 +224,6 @@ const Jobs = () => {
   ];
 
   if (loading) return <Spinner />;
-  if (error)   return <ErrorState message={error} onRetry={fetchJobs} />;
 
   return (
     <>
@@ -246,6 +235,7 @@ const Jobs = () => {
           <div>
             <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Jobs</h1>
             <p style={{ color: "#555", fontSize: 13 }}>{filtered.length} job{filtered.length !== 1 ? "s" : ""} found</p>
+            {error && <p style={{ color: "#EF4444", fontSize: 12, marginTop: 4, wordBreak: "break-all" }}>API error: {error}</p>}
           </div>
           <button
             onClick={() => setShowForm(true)}
