@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getInventory, createInventoryItem } from "../api/inventory";
-import type { InventoryItem, StockStatus } from "../api/inventory";
+import type { InventoryItem, StockStatus, CreateInventoryPayload } from "../api/inventory";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ const NoteIcon   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="n
 
 const ItemCard = ({ item, onClick }: { item: InventoryItem; onClick: () => void }) => {
   const [pressed, setPressed] = useState(false);
-  const cfg = STATUS_CFG[item.status];
+  const cfg = STATUS_CFG[item.status ?? "In Stock"];
 
   return (
     <div
@@ -57,11 +57,11 @@ const ItemCard = ({ item, onClick }: { item: InventoryItem; onClick: () => void 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
           <span style={{ color: "#FFF", fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
-          <span style={{ background: cfg.bg, color: cfg.color, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", padding: "3px 8px", borderRadius: 20, flexShrink: 0 }}>{item.status.toUpperCase()}</span>
+          <span style={{ background: cfg.bg, color: cfg.color, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", padding: "3px 8px", borderRadius: 20, flexShrink: 0 }}>{(item.status ?? "IN STOCK").toUpperCase()}</span>
         </div>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <span style={{ color: "#555", fontSize: 12 }}>{item.category}</span>
-          <span style={{ color: "#A1A1A1", fontSize: 12, fontWeight: 600 }}>{item.qty} {item.unit}</span>
+          <span style={{ color: "#555", fontSize: 12 }}>{item.category ?? ""}</span>
+          <span style={{ color: "#A1A1A1", fontSize: 12, fontWeight: 600 }}>{item.quantity ?? item.qty ?? 0} {item.unit ?? ""}</span>
         </div>
       </div>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -95,25 +95,26 @@ interface InvFormProps {
 
 const InventoryForm = ({ onClose, onSaved, onToast }: InvFormProps) => {
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "", qty: "", unit: "pcs" });
+  const [form, setForm] = useState({ name: "", sku: "", description: "", quantity: "", unit: "pcs" });
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.sku.trim()) return;
     setSaving(true);
     try {
-      await createInventoryItem({
-        name: form.name,
-        category: form.category,
-        qty: Number(form.qty) || 0,
-        unit: form.unit,
-        status: "In Stock",
-        description: "",
-        location: "",
-      });
-      onToast({ msg: "Item added", ok: true });
+      const payload: CreateInventoryPayload = {
+        name:        form.name,
+        sku:         form.sku,
+        companyId:   1,
+        description: form.description || undefined,
+        quantity:    Number(form.quantity) || 0,
+        unit:        form.unit || "pcs",
+        isActive:    true,
+      };
+      await createInventoryItem(payload);
+      onToast({ msg: "Item agregado", ok: true });
       onClose();
       onSaved();
     } catch (err) {
@@ -121,6 +122,8 @@ const InventoryForm = ({ onClose, onSaved, onToast }: InvFormProps) => {
       setSaving(false);
     }
   };
+
+  const canSubmit = form.name.trim().length > 0 && form.sku.trim().length > 0 && !saving;
 
   return (
     <>
@@ -135,28 +138,32 @@ const InventoryForm = ({ onClose, onSaved, onToast }: InvFormProps) => {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={labelStyle}>NAME *</label>
+            <label style={labelStyle}>NOMBRE *</label>
             <input value={form.name} onChange={set("name")} placeholder="e.g. HDMI Cable" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>CATEGORY</label>
-            <input value={form.category} onChange={set("category")} placeholder="e.g. Cables" style={inputStyle} />
+            <label style={labelStyle}>SKU / CÓDIGO *</label>
+            <input value={form.sku} onChange={set("sku")} placeholder="e.g. CAB-HDMI-01" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>DESCRIPCIÓN</label>
+            <input value={form.description} onChange={set("description")} placeholder="Descripción opcional" style={inputStyle} />
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>QUANTITY</label>
-              <input value={form.qty} onChange={set("qty")} placeholder="0" type="number" min="0" style={inputStyle} />
+              <label style={labelStyle}>CANTIDAD</label>
+              <input value={form.quantity} onChange={set("quantity")} placeholder="0" type="number" min="0" style={inputStyle} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>UNIT</label>
+              <label style={labelStyle}>UNIDAD</label>
               <input value={form.unit} onChange={set("unit")} placeholder="pcs" style={inputStyle} />
             </div>
           </div>
         </div>
         <button
           onClick={handleSubmit}
-          disabled={saving || !form.name.trim()}
-          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: saving || !form.name.trim() ? "#1A1A1A" : "#22C55E", color: saving || !form.name.trim() ? "#444" : "#000", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: saving || !form.name.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          disabled={!canSubmit}
+          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: canSubmit ? "#22C55E" : "#1A1A1A", color: canSubmit ? "#000" : "#444", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit" }}
         >
           {saving ? "Saving..." : "ADD ITEM"}
         </button>
@@ -168,7 +175,7 @@ const InventoryForm = ({ onClose, onSaved, onToast }: InvFormProps) => {
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
 
 const DetailSheet = ({ item, onClose }: { item: InventoryItem; onClose: () => void }) => {
-  const cfg = STATUS_CFG[item.status];
+  const cfg = STATUS_CFG[item.status ?? "In Stock"];
 
   return (
     <>
@@ -183,12 +190,12 @@ const DetailSheet = ({ item, onClose }: { item: InventoryItem; onClose: () => vo
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: "#FFF", fontSize: 16, fontWeight: 700, marginBottom: 2 }}>{item.name}</div>
-            <span style={{ background: cfg.bg, color: cfg.color, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", padding: "3px 8px", borderRadius: 20 }}>{item.status.toUpperCase()}</span>
+            <span style={{ background: cfg.bg, color: cfg.color, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", padding: "3px 8px", borderRadius: 20 }}>{(item.status ?? "IN STOCK").toUpperCase()}</span>
           </div>
         </div>
         <div style={{ background: "#1A1A1A", border: "1px solid #2A2A2A", borderRadius: 14, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <span style={{ color: "#555", fontSize: 12, fontWeight: 500, letterSpacing: "0.06em" }}>QUANTITY</span>
-          <span style={{ color: cfg.color, fontSize: 28, fontWeight: 800 }}>{item.qty} <span style={{ fontSize: 14, fontWeight: 500, color: "#555" }}>{item.unit}</span></span>
+          <span style={{ color: cfg.color, fontSize: 28, fontWeight: 800 }}>{item.quantity ?? item.qty ?? 0} <span style={{ fontSize: 14, fontWeight: 500, color: "#555" }}>{item.unit ?? ""}</span></span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {[
@@ -245,11 +252,10 @@ const Inventory = () => {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const filtered = items.filter(
-    (i) =>
-      i.name.toLowerCase().includes(search.toLowerCase()) ||
-      i.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = items.filter((i) => {
+    const q = search.toLowerCase();
+    return i.name.toLowerCase().includes(q) || (i.category ?? "").toLowerCase().includes(q);
+  });
 
   const inStock = items.filter((i) => i.status === "In Stock").length;
   const low     = items.filter((i) => i.status === "Low").length;

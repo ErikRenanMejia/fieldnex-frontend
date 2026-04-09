@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { getJobs, createJob } from "../api/jobs";
-import type { Job, JobStatus } from "../api/jobs";
+import type { Job, JobStatus, CreateJobPayload } from "../api/jobs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,18 +112,28 @@ interface JobFormProps {
 const JobForm = ({ onClose, onSaved, onToast }: JobFormProps) => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    title: "", client: "", address: "", time: "", system: "Lutron",
+    title: "", description: "", location: "", scheduledAt: "", priority: "Medium", system: "Lutron",
   });
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const handleSubmit = async () => {
-    if (!form.title.trim() || !form.client.trim()) return;
+    if (!form.title.trim()) return;
     setSaving(true);
     try {
-      await createJob({ ...form, status: "Pending" });
-      onToast({ msg: "Job created", ok: true });
+      const payload: CreateJobPayload = {
+        title:       form.title,
+        companyId:   1,
+        customerId:  1,
+        description: form.description || undefined,
+        location:    form.location    || undefined,
+        scheduledAt: form.scheduledAt || undefined,
+        priority:    form.priority,
+        status:      "Pending",
+      };
+      await createJob(payload);
+      onToast({ msg: "Job creado", ok: true });
       onClose();
       onSaved();
     } catch (err) {
@@ -131,6 +141,8 @@ const JobForm = ({ onClose, onSaved, onToast }: JobFormProps) => {
       setSaving(false);
     }
   };
+
+  const canSubmit = form.title.trim().length > 0 && !saving;
 
   return (
     <>
@@ -144,28 +156,39 @@ const JobForm = ({ onClose, onSaved, onToast }: JobFormProps) => {
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {[
-            { label: "TITLE *", key: "title" as const, placeholder: "e.g. HVAC Installation" },
-            { label: "CLIENT *", key: "client" as const, placeholder: "e.g. Acme Corp" },
-            { label: "ADDRESS", key: "address" as const, placeholder: "e.g. 123 Main St" },
-            { label: "TIME", key: "time" as const, placeholder: "e.g. 09:00 AM" },
-          ].map(({ label, key, placeholder }) => (
-            <div key={key}>
-              <label style={labelStyle}>{label}</label>
-              <input value={form[key]} onChange={set(key)} placeholder={placeholder} style={inputStyle} />
-            </div>
-          ))}
           <div>
-            <label style={labelStyle}>SYSTEM</label>
+            <label style={labelStyle}>TÍTULO *</label>
+            <input value={form.title} onChange={set("title")} placeholder="e.g. HVAC Installation" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>DESCRIPCIÓN</label>
+            <textarea value={form.description} onChange={set("description")} placeholder="Detalles del job..." rows={2} style={{ ...inputStyle, height: "auto", padding: "10px 14px", resize: "none" }} />
+          </div>
+          <div>
+            <label style={labelStyle}>UBICACIÓN</label>
+            <input value={form.location} onChange={set("location")} placeholder="e.g. 123 Main St" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>FECHA Y HORA</label>
+            <input value={form.scheduledAt} onChange={set("scheduledAt")} type="datetime-local" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>SISTEMA</label>
             <select value={form.system} onChange={set("system")} style={{ ...inputStyle, appearance: "none" }}>
               {SYSTEMS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>PRIORIDAD</label>
+            <select value={form.priority} onChange={set("priority")} style={{ ...inputStyle, appearance: "none" }}>
+              {["High", "Medium", "Low"].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
         </div>
         <button
           onClick={handleSubmit}
-          disabled={saving || !form.title.trim() || !form.client.trim()}
-          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: saving || !form.title.trim() || !form.client.trim() ? "#1A1A1A" : "#22C55E", color: saving || !form.title.trim() || !form.client.trim() ? "#444" : "#000", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: saving || !form.title.trim() || !form.client.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+          disabled={!canSubmit}
+          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: canSubmit ? "#22C55E" : "#1A1A1A", color: canSubmit ? "#000" : "#444", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: canSubmit ? "pointer" : "not-allowed", fontFamily: "inherit" }}
         >
           {saving ? "Saving..." : "CREATE JOB"}
         </button>
