@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getInventory } from "../api/inventory";
+import { getInventory, createInventoryItem } from "../api/inventory";
 import type { InventoryItem, StockStatus } from "../api/inventory";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -79,6 +79,102 @@ const ItemCard = ({ item, onClick }: { item: InventoryItem; onClick: () => void 
   );
 };
 
+// ─── Toast / Form types ───────────────────────────────────────────────────────
+
+type ToastMsg = { msg: string; ok: boolean } | null;
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", height: 46, padding: "0 14px",
+  background: "#1A1A1A", border: "1px solid #2A2A2A",
+  borderRadius: 12, color: "#FFF", fontSize: 14,
+  outline: "none", fontFamily: "inherit",
+};
+
+const labelStyle: React.CSSProperties = {
+  color: "#555", fontSize: 11, fontWeight: 600,
+  letterSpacing: "0.06em", marginBottom: 6, display: "block",
+};
+
+// ─── Inventory Form ───────────────────────────────────────────────────────────
+
+interface InvFormProps {
+  onClose: () => void;
+  onSaved: () => void;
+  onToast: (t: ToastMsg) => void;
+}
+
+const InventoryForm = ({ onClose, onSaved, onToast }: InvFormProps) => {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", category: "", qty: "", unit: "pcs" });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await createInventoryItem({
+        name: form.name,
+        category: form.category,
+        qty: Number(form.qty) || 0,
+        unit: form.unit,
+        status: "In Stock",
+        description: "",
+        location: "",
+      });
+      onToast({ msg: "Item added", ok: true });
+      onClose();
+      onSaved();
+    } catch (err) {
+      onToast({ msg: err instanceof Error ? err.message : "Failed to add item", ok: false });
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 30 }} />
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#111", borderTop: "1px solid #1F1F1F", borderRadius: "20px 20px 0 0", padding: "8px 20px 40px", zIndex: 31 }}>
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 18px" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2A2A2A" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <span style={{ color: "#FFF", fontSize: 16, fontWeight: 700 }}>Add Item</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={labelStyle}>NAME *</label>
+            <input value={form.name} onChange={set("name")} placeholder="e.g. HDMI Cable" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>CATEGORY</label>
+            <input value={form.category} onChange={set("category")} placeholder="e.g. Cables" style={inputStyle} />
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>QUANTITY</label>
+              <input value={form.qty} onChange={set("qty")} placeholder="0" type="number" min="0" style={inputStyle} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>UNIT</label>
+              <input value={form.unit} onChange={set("unit")} placeholder="pcs" style={inputStyle} />
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={saving || !form.name.trim()}
+          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: saving || !form.name.trim() ? "#1A1A1A" : "#22C55E", color: saving || !form.name.trim() ? "#444" : "#000", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: saving || !form.name.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+        >
+          {saving ? "Saving..." : "ADD ITEM"}
+        </button>
+      </div>
+    </>
+  );
+};
+
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
 
 const DetailSheet = ({ item, onClose }: { item: InventoryItem; onClose: () => void }) => {
@@ -133,9 +229,16 @@ const Inventory = () => {
   const navigate = useNavigate();
   const [search, setSearch]       = useState("");
   const [selected, setSelected]   = useState<InventoryItem | null>(null);
+  const [showForm, setShowForm]   = useState(false);
+  const [toast, setToast]         = useState<ToastMsg>(null);
   const [items, setItems]         = useState<InventoryItem[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
+
+  const showToast = (t: ToastMsg) => {
+    setToast(t);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchItems = useCallback(async () => {
     try {
@@ -182,6 +285,7 @@ const Inventory = () => {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 20px 16px", position: "sticky", top: 0, zIndex: 10, background: "#080808" }}>
           <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700 }}>Inventory</h1>
           <button
+            onClick={() => setShowForm(true)}
             style={{ width: 36, height: 36, borderRadius: 10, background: "#22C55E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
             title="Add item"
           >
@@ -251,6 +355,16 @@ const Inventory = () => {
 
       {/* Detail sheet */}
       {selected && <DetailSheet item={selected} onClose={() => setSelected(null)} />}
+
+      {/* Add item form */}
+      {showForm && <InventoryForm onClose={() => setShowForm(false)} onSaved={fetchItems} onToast={showToast} />}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: toast.ok ? "#052E16" : "#2D0A0A", border: `1px solid ${toast.ok ? "#22C55E" : "#EF4444"}`, borderRadius: 12, padding: "10px 20px", color: toast.ok ? "#22C55E" : "#EF4444", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif" }}>
+          {toast.msg}
+        </div>
+      )}
     </>
   );
 };

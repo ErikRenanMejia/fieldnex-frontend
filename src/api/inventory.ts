@@ -13,5 +13,6 @@ export interface InventoryItem {
   location: string;
 }
 
-export const getInventory     = ()           => fetchAPI<InventoryItem[]>('/inventory');
-export const getInventoryById = (id: string) => fetchAPI<InventoryItem>(`/inventory/${id}`);
+export const getInventory        = ()                            => fetchAPI<InventoryItem[]>('/inventory');
+export const getInventoryById    = (id: string)                  => fetchAPI<InventoryItem>(`/inventory/${id}`);
+export const createInventoryItem = (data: Partial<InventoryItem>) => fetchAPI<InventoryItem>('/inventory', { method: 'POST', body: JSON.stringify(data) });

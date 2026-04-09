@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getJobs } from "../api/jobs";
+import { getJobs, createJob } from "../api/jobs";
 import type { Job, JobStatus } from "../api/jobs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +93,97 @@ const JobCard = ({ job, onClick }: { job: Job; onClick: () => void }) => {
   );
 };
 
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+type ToastMsg = { msg: string; ok: boolean } | null;
+
+// ─── Job Form ─────────────────────────────────────────────────────────────────
+
+const SYSTEMS = ["Lutron", "Savant", "Control4", "Other"];
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", height: 46, padding: "0 14px",
+  background: "#1A1A1A", border: "1px solid #2A2A2A",
+  borderRadius: 12, color: "#FFF", fontSize: 14,
+  outline: "none", fontFamily: "inherit",
+};
+
+const labelStyle: React.CSSProperties = {
+  color: "#555", fontSize: 11, fontWeight: 600,
+  letterSpacing: "0.06em", marginBottom: 6, display: "block",
+};
+
+interface JobFormProps {
+  onClose: () => void;
+  onSaved: () => void;
+  onToast: (t: ToastMsg) => void;
+}
+
+const JobForm = ({ onClose, onSaved, onToast }: JobFormProps) => {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    title: "", client: "", address: "", time: "", system: "Lutron",
+  });
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.client.trim()) return;
+    setSaving(true);
+    try {
+      await createJob({ ...form, status: "Pending" });
+      onToast({ msg: "Job created", ok: true });
+      onClose();
+      onSaved();
+    } catch (err) {
+      onToast({ msg: err instanceof Error ? err.message : "Failed to create job", ok: false });
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 30 }} />
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#111", borderTop: "1px solid #1F1F1F", borderRadius: "20px 20px 0 0", padding: "8px 20px 40px", zIndex: 31, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 18px" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: "#2A2A2A" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <span style={{ color: "#FFF", fontSize: 16, fontWeight: 700 }}>New Job</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {[
+            { label: "TITLE *", key: "title" as const, placeholder: "e.g. HVAC Installation" },
+            { label: "CLIENT *", key: "client" as const, placeholder: "e.g. Acme Corp" },
+            { label: "ADDRESS", key: "address" as const, placeholder: "e.g. 123 Main St" },
+            { label: "TIME", key: "time" as const, placeholder: "e.g. 09:00 AM" },
+          ].map(({ label, key, placeholder }) => (
+            <div key={key}>
+              <label style={labelStyle}>{label}</label>
+              <input value={form[key]} onChange={set(key)} placeholder={placeholder} style={inputStyle} />
+            </div>
+          ))}
+          <div>
+            <label style={labelStyle}>SYSTEM</label>
+            <select value={form.system} onChange={set("system")} style={{ ...inputStyle, appearance: "none" }}>
+              {SYSTEMS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={saving || !form.title.trim() || !form.client.trim()}
+          style={{ width: "100%", height: 52, borderRadius: 14, border: "none", marginTop: 24, background: saving || !form.title.trim() || !form.client.trim() ? "#1A1A1A" : "#22C55E", color: saving || !form.title.trim() || !form.client.trim() ? "#444" : "#000", fontSize: 14, fontWeight: 700, letterSpacing: "0.06em", cursor: saving || !form.title.trim() || !form.client.trim() ? "not-allowed" : "pointer", fontFamily: "inherit" }}
+        >
+          {saving ? "Saving..." : "CREATE JOB"}
+        </button>
+      </div>
+    </>
+  );
+};
+
 // ─── Jobs Page ────────────────────────────────────────────────────────────────
 
 const Jobs = () => {
@@ -103,6 +194,13 @@ const Jobs = () => {
   const [jobs, setJobs]                 = useState<Job[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
+  const [showForm, setShowForm]         = useState(false);
+  const [toast, setToast]               = useState<ToastMsg>(null);
+
+  const showToast = (t: ToastMsg) => {
+    setToast(t);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -144,9 +242,17 @@ const Jobs = () => {
       <div style={{ minHeight: "100vh", background: "#080808", fontFamily: "'Syne', sans-serif", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column" }}>
 
         {/* Topbar */}
-        <div style={{ padding: "20px 20px 16px", position: "sticky", top: 0, zIndex: 10, background: "#080808" }}>
-          <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Jobs</h1>
-          <p style={{ color: "#555", fontSize: 13 }}>{filtered.length} job{filtered.length !== 1 ? "s" : ""} found</p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 20px 16px", position: "sticky", top: 0, zIndex: 10, background: "#080808" }}>
+          <div>
+            <h1 style={{ color: "#FFF", fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Jobs</h1>
+            <p style={{ color: "#555", fontSize: 13 }}>{filtered.length} job{filtered.length !== 1 ? "s" : ""} found</p>
+          </div>
+          <button
+            onClick={() => setShowForm(true)}
+            style={{ width: 36, height: 36, borderRadius: 10, background: "#22C55E", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 100px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -208,6 +314,15 @@ const Jobs = () => {
           ))}
         </div>
       </div>
+      {/* Form sheet */}
+      {showForm && <JobForm onClose={() => setShowForm(false)} onSaved={fetchJobs} onToast={showToast} />}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: toast.ok ? "#052E16" : "#2D0A0A", border: `1px solid ${toast.ok ? "#22C55E" : "#EF4444"}`, borderRadius: 12, padding: "10px 20px", color: toast.ok ? "#22C55E" : "#EF4444", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif" }}>
+          {toast.msg}
+        </div>
+      )}
     </>
   );
 };

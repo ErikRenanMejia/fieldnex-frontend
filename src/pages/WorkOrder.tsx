@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getWorkOrderById, updateWorkOrderStatus } from "../api/workOrders";
+import { getWorkOrderById, updateWorkOrderStatus, updateCheckItem } from "../api/workOrders";
 import type { WorkOrder as WorkOrderData, CheckItem } from "../api/workOrders";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -128,6 +128,12 @@ const WorkOrder = () => {
   const [checked, setChecked]     = useState<Set<string>>(new Set());
   const [btnHover, setBtnHover]   = useState(false);
   const [btnActive, setBtnActive] = useState(false);
+  const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showToast = (msg: string, ok: boolean) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchOrder = useCallback(async () => {
     if (!id) return;
@@ -148,7 +154,13 @@ const WorkOrder = () => {
   const toggle = (itemId: string) => {
     setChecked((prev) => {
       const next = new Set(prev);
-      next.has(itemId) ? next.delete(itemId) : next.add(itemId);
+      const nowChecked = !next.has(itemId);
+      nowChecked ? next.add(itemId) : next.delete(itemId);
+      if (id) {
+        updateCheckItem(id, itemId, nowChecked).catch(() => {
+          showToast("Failed to sync item", false);
+        });
+      }
       return next;
     });
   };
@@ -158,8 +170,10 @@ const WorkOrder = () => {
     try {
       setCompleting(true);
       await updateWorkOrderStatus(id, "completed");
-      navigate(-1);
-    } catch {
+      showToast("Work order completed", true);
+      setTimeout(() => navigate(-1), 1000);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to complete", false);
       setCompleting(false);
     }
   };
@@ -178,6 +192,14 @@ const WorkOrder = () => {
   return (
     <>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;margin:0;padding:0;}::-webkit-scrollbar{width:0;}`}</style>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 50, background: toast.ok ? "#052E16" : "#2D0A0A", border: `1px solid ${toast.ok ? "#22C55E" : "#EF4444"}`, borderRadius: 12, padding: "10px 20px", color: toast.ok ? "#22C55E" : "#EF4444", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", fontFamily: "'Syne', sans-serif" }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div style={{ minHeight: "100vh", background: "#080808", fontFamily: "'Syne', sans-serif", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column" }}>
 
         {/* Topbar */}

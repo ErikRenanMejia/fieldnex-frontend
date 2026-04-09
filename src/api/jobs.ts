@@ -18,5 +18,6 @@ export interface Job {
   notes?: string;
 }
 
-export const getJobs       = ()           => fetchAPI<Job[]>(`/jobs`);
-export const getJobById    = (id: string) => fetchAPI<Job>(`/jobs/${id}`);
+export const getJobs       = ()                   => fetchAPI<Job[]>(`/jobs`);
+export const getJobById    = (id: string)         => fetchAPI<Job>(`/jobs/${id}`);
+export const createJob     = (data: Partial<Job>) => fetchAPI<Job>('/jobs', { method: 'POST', body: JSON.stringify(data) });
